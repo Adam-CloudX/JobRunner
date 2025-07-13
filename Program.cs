@@ -1,50 +1,68 @@
 ﻿using JobRunner.Core;
 using JobRunner.Jobs;
+using JobRunner.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Serilog;
 
-var host = Host.CreateDefaultBuilder(args)
-    .ConfigureLogging(logging =>
-    {
-        logging.ClearProviders();
-        logging.AddConsole();
-        logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.None);
-        logging.SetMinimumLevel(LogLevel.Information);
-    })
-    .ConfigureAppConfiguration(config =>
-    {
-        config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-    })
-    .ConfigureServices((context, services) =>
-    {
-        var configuration = context.Configuration;
-        var jobList = configuration.GetSection("Jobs").Get<List<JobSchedule>>() ?? [];
+Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-        services.AddSingleton<IEnumerable<JobSchedule>>(jobList);
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.Hosting.Lifetime", Serilog.Events.LogEventLevel.Warning)
+    .WriteTo.Console(outputTemplate:
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
 
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-        var logger = loggerFactory.CreateLogger("Startup");
+try
+{
+    Log.Information("🚀 Starting JobRunner...");
 
-        if (jobList.Count == 0)
+    var host = Host.CreateDefaultBuilder(args)
+        .UseSerilog()
+        .ConfigureAppConfiguration(config =>
         {
-            logger.LogWarning("No jobs found in configuration!");
-        }
-        else
+            config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+        })
+        .ConfigureServices((context, services) =>
         {
-            logger.LogInformation("Loaded {Count} job(s): {Jobs}",
-                jobList.Count,
-                string.Join(", ", jobList.Select(j => $"{j.JobName} ({j.Interval})")));
-        }
+            var configuration = context.Configuration;
+            var jobList = configuration.GetSection("Jobs").Get<List<JobSchedule>>() ?? [];
 
-        // Register job implementations
-        services.AddSingleton<IJobTask, PingJob>();
-        services.AddSingleton<IJobTask, DiskCleanupJob>();
+            services.AddSingleton<IEnumerable<JobSchedule>>(jobList);
+            services.AddSingleton<IConfiguration>(configuration);
 
-        // Register background scheduler
-        services.AddHostedService<JobScheduler>();
-    })
-    .Build();
+            var logger = Log.ForContext("SourceContext", "Startup");
 
-await host.RunAsync();
+            if (jobList.Count == 0)
+            {
+                logger.Warning("⚠️ No jobs found in configuration!");
+            }
+            else
+            {
+                logger.Information("📦 Loaded {Count} job(s): {Jobs}",
+                    jobList.Count,
+                    string.Join(", ", jobList.Select(j => $"{j.JobName} ⏱️ {j.Interval}")));
+            }
+
+            // Register job implementations
+            services.AddSingleton<IJobTask, PingJob>();
+            services.AddSingleton<IJobTask, DiskCleanupJob>();
+
+            // Register background scheduler
+            services.AddHostedService<JobScheduler>();
+        })
+        .Build();
+
+    await host.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "💥 Host terminated unexpectedly");
+}
+finally
+{
+    Log.Information("👋 Shutting down JobRunner.");
+    Log.CloseAndFlush();
+}

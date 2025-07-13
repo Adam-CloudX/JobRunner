@@ -3,27 +3,35 @@ using Microsoft.Extensions.Logging;
 
 namespace JobRunner.Jobs
 {
-    public class DiskCleanupJob : IJobTask
+    public class DiskCleanupJob : IPreviewableJob
     {
         public string Name => "DiskCleanupJob";
 
         public async Task ExecuteAsync(JobContext context, CancellationToken cancellationToken)
         {
+            await Run(context, preview: false, cancellationToken);
+        }
+
+        public async Task PreviewAsync(JobContext context, CancellationToken cancellationToken)
+        {
+            await Run(context, preview: true, cancellationToken);
+        }
+
+        private static async Task Run(JobContext context, bool preview, CancellationToken cancellationToken)
+        {
             var logger = context.Logger;
 
             var hasPath = context.Parameters.TryGetValue("TargetDirectory", out var targetDir);
             var hasDays = context.Parameters.TryGetValue("DeleteOlderThanDays", out var daysStr);
-            var preview = context.Parameters.TryGetValue("Preview", out var previewVal) && previewVal.Equals("true", StringComparison.OrdinalIgnoreCase);
-
             if (!hasPath || !hasDays || !int.TryParse(daysStr, out var days))
             {
-                logger.LogError("Missing or invalid parameters. Required: TargetDirectory, DeleteOlderThanDays");
+                logger.LogError("❌ Missing or invalid parameters. Required: TargetDirectory, DeleteOlderThanDays");
                 return;
             }
 
             if (!Directory.Exists(targetDir))
             {
-                logger.LogError("Directory not found: {TargetDirectory}", targetDir);
+                logger.LogError("📁 Directory not found: {TargetDirectory}", targetDir);
                 return;
             }
 
@@ -44,32 +52,29 @@ namespace JobRunner.Jobs
                     {
                         if (preview)
                         {
-                            logger.LogInformation("Preview: Would delete {File}", info.FullName);
+                            logger.LogInformation("📝 Preview: Would delete {File}", info.FullName);
                         }
                         else
                         {
                             totalBytes += info.Length;
                             info.Delete();
                             deletedCount++;
-                            logger.LogInformation("Deleted: {File}", info.FullName);
+                            logger.LogInformation("🧹 Deleted: {File}", info.FullName);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Failed to process {File}", file);
+                    logger.LogError(ex, "⚠️ Failed to process {File}", file);
                 }
             }
 
-            if (!preview)
-            {
-                logger.LogInformation("Cleanup complete. Deleted {Count} files, freed {Size} KB",
-                    deletedCount, totalBytes / 1024);
-            }
-            else
-            {
-                logger.LogInformation("Preview mode complete. {Count} files would be deleted.", deletedCount);
-            }
+            var mode = preview ? "🔍 Preview mode" : "✅ Cleanup complete";
+            var summary = preview
+                ? $"{deletedCount} files would be deleted."
+                : $"Deleted {deletedCount} files, freed {totalBytes / 1024:N0} KB";
+
+            logger.LogInformation("{Mode}: {Summary}", mode, summary);
 
             await Task.CompletedTask;
         }
