@@ -82,7 +82,7 @@ services.AddSingleton<IJobTask, MyNewJob>();
 
 ## 📌 Roadmap Ideas
 - [x] ✅ `PingJob` – Periodically ping a URL and log the status code
-- [ ] 🧹 **Disk Cleanup Job** – Recursively delete files older than X days from a target folder
+- [x] 🧹 **Disk Cleanup Job** – Recursively delete files older than X days from a target folder
 - [ ] ⭐ **GitHub Star Tracker** – Poll a GitHub repo for stars, track and alert on increases
 - [ ] 🧠 Memory monitor or disk usage job
 - [ ] 📨 Email/Slack/webhook alerting system
