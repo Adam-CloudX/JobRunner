@@ -40,6 +40,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         // Register job implementations
         services.AddSingleton<IJobTask, PingJob>();
+        services.AddSingleton<IJobTask, DiskCleanupJob>();
 
         // Register background scheduler
         services.AddHostedService<JobScheduler>();
