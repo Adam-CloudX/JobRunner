@@ -41,13 +41,29 @@ JobRunner/
 ### 🧪 Example: PingJob
 
 The included PingJob sends an HTTP GET request to a configured URL every 10 seconds.
+
 Config Example (appsettings.json):
 ```
 {
+  // 🔁 Global switch: if true, all jobs will run in preview mode regardless of individual job settings.
+  // This is useful for testing or dry-runs across all jobs.
+  // If false, each job's "IsPreview" flag determines preview behavior.
+  "RunAllJobsInPreview": false,
+
   "Jobs": [
     {
       "JobName": "PingJob",
+      // ⏱️ How often the job should run
       "Interval": "00:00:10",
+
+      // ✅ Controls whether this job is enabled and will be scheduled
+      "Enabled": true,
+
+      // 📝 If true, this specific job will run in preview (dry-run) mode.
+      // If global RunAllJobsInPreview is true, this is ignored.
+      "IsPreview": true,
+
+      // ⚙️ Job-specific parameters
       "Parameters": {
         "Url": "https://google.com"
       }
@@ -83,6 +99,7 @@ services.AddSingleton<IJobTask, MyNewJob>();
 ## 📌 Roadmap Ideas
 - [x] ✅ `PingJob` – Periodically ping a URL and log the status code
 - [x] 🧹 **Disk Cleanup Job** – Recursively delete files older than X days from a target folder
+- [x] 📝 Preview mode support for all jobs (dry-run without executing logic)
 - [ ] ⭐ **GitHub Star Tracker** – Poll a GitHub repo for stars, track and alert on increases
 - [ ] 🧠 Memory monitor or disk usage job
 - [ ] 📨 Email/Slack/webhook alerting system
