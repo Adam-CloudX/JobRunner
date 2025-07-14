@@ -49,6 +49,7 @@ try
             // Register job implementations
             services.AddSingleton<IJobTask, PingJob>();
             services.AddSingleton<IJobTask, DiskCleanupJob>();
+            services.AddSingleton<IJobTask, GitHubStarTrackerJob>();
 
             // Register background scheduler
             services.AddHostedService<JobScheduler>();
