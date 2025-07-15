@@ -98,14 +98,13 @@ services.AddSingleton<IJobTask, MyNewJob>();
 
 ## 📌 Roadmap Ideas
 - [x] ✅ `PingJob` – Periodically ping a URL and log the status code
-- [x] 🧹 **Disk Cleanup Job** – Recursively delete files older than X days from a target folder
-- [x] 📝 Preview mode support for all jobs (dry-run without executing logic)
-- [ ] ⭐ **GitHub Star Tracker** – Poll a GitHub repo for stars, track and alert on increases
-- [ ] 🧠 Memory monitor or disk usage job
+- [x] 🧹 `DiskCleanupJob` – Recursively delete files older than X days from a target folder
+- [x] ⭐ `GitHubStarTrackerJob` – Poll GitHub repo for star count and log changes
+- [x] 📦 `ApplicationResourceMonitorJob` – Monitor current app’s memory/CPU usage and alert if limits are exceeded
 - [ ] 📨 Email/Slack/webhook alerting system
-- [ ] 📦 Plugin-based job discovery (load jobs from external assemblies)
 - [ ] 📊 CSV/JSON file processor job
 - [ ] 🕸️ Broken link checker (scan websites for 404s)
+- [ ] 📦 Plugin-based job discovery (load jobs from external assemblies)
 
 ---
 

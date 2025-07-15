@@ -50,6 +50,7 @@ try
             services.AddSingleton<IJobTask, PingJob>();
             services.AddSingleton<IJobTask, DiskCleanupJob>();
             services.AddSingleton<IJobTask, GitHubStarTrackerJob>();
+            services.AddSingleton<IJobTask, ApplicationResourceMonitorJob>();
 
             // Register background scheduler
             services.AddHostedService<JobScheduler>();
