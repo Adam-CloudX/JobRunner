@@ -1,6 +1,7 @@
 ﻿using JobRunner.Core;
-using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 
 namespace JobRunner.Jobs
@@ -12,18 +13,18 @@ namespace JobRunner.Jobs
         private int _lastKnownStars = -1;
 
         public async Task ExecuteAsync(JobContext context, CancellationToken cancellationToken)
-        {
-            await Run(context, preview: false, cancellationToken);
-        }
+            => await Run(context, preview: false, cancellationToken);
 
         public async Task PreviewAsync(JobContext context, CancellationToken cancellationToken)
-        {
-            await Run(context, preview: true, cancellationToken);
-        }
+            => await Run(context, preview: true, cancellationToken);
 
         private async Task Run(JobContext context, bool preview, CancellationToken cancellationToken)
         {
             var logger = context.Logger;
+            var logBuilder = new StringBuilder();
+
+            void LogInfo(string msg) => logBuilder.AppendLine(msg);
+            void LogError(string msg) => logBuilder.AppendLine(msg);
 
             if (!context.Parameters.TryGetValue("Repo", out var repo) || string.IsNullOrWhiteSpace(repo))
             {
@@ -32,7 +33,7 @@ namespace JobRunner.Jobs
             }
 
             context.Parameters.TryGetValue("MinDelta", out var deltaRaw);
-            int.TryParse(deltaRaw, out var minDelta);
+            _ = int.TryParse(deltaRaw, out var minDelta);
             minDelta = minDelta < 1 ? 1 : minDelta;
 
             try
@@ -50,32 +51,35 @@ namespace JobRunner.Jobs
 
                 if (preview)
                 {
-                    logger.LogInformation("⭐ Preview: {Repo} has {Stars} star(s)", repo, currentStars);
-                    return;
+                    LogInfo($"Preview: {repo} has {currentStars} star(s)");
                 }
-
-                if (_lastKnownStars == -1)
+                else if (_lastKnownStars == -1)
                 {
                     _lastKnownStars = currentStars;
-                    logger.LogInformation("📦 Initialized: {Repo} has {Stars} star(s)", repo, currentStars);
-                    return;
-                }
-
-                var diff = currentStars - _lastKnownStars;
-                if (diff >= minDelta)
-                {
-                    logger.LogInformation("🚀 {Repo} gained {Delta} star(s)! ({Prev} ➜ {Now})", repo, diff, _lastKnownStars, currentStars);
-                    _lastKnownStars = currentStars;
+                    LogInfo($"Initialized: {repo} has {currentStars} star(s)");
                 }
                 else
                 {
-                    logger.LogInformation("📉 No significant change in stars for {Repo} (Current: {Now})", repo, currentStars);
+                    var diff = currentStars - _lastKnownStars;
+                    if (diff >= minDelta)
+                    {
+                        LogInfo($"🚀 {repo} gained {diff} star(s)! ({_lastKnownStars} ➜ {currentStars})");
+                        _lastKnownStars = currentStars;
+                    }
+                    else
+                    {
+                        LogInfo($"No significant change in stars for {repo} (Current: {currentStars})");
+                    }
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "⚠️ Failed to track stars for {Repo}", repo);
+                LogError($"Failed to track stars for {repo}: {ex.Message}");
             }
+
+            logger.LogInformation("{BatchLog}", logBuilder.ToString().TrimEnd());
+
+            await Task.CompletedTask;
         }
     }
 }

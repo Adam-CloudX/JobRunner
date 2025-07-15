@@ -41,15 +41,14 @@ try
             }
             else
             {
-                logger.Information("📦 Loaded {Count} job(s): {Jobs}",
-                    jobList.Count,
-                    string.Join(", ", jobList.Select(j => $"{j.JobName} ⏱️ {j.Interval}")));
+                logger.Information("📦 Loaded {Count} job(s): {Jobs}", jobList.Count, string.Join(", ", jobList.Select(j => j.JobName)));
             }
 
             // Register job implementations
             services.AddSingleton<IJobTask, PingJob>();
             services.AddSingleton<IJobTask, DiskCleanupJob>();
             services.AddSingleton<IJobTask, GitHubStarTrackerJob>();
+            services.AddSingleton<IJobTask, ApplicationResourceMonitorJob>();
 
             // Register background scheduler
             services.AddHostedService<JobScheduler>();
