@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using JobRunner.Utils;
 
 namespace JobRunner.Core
 {
@@ -15,73 +16,111 @@ namespace JobRunner.Core
         private readonly IEnumerable<IJobTask> _tasks = tasks;
         private readonly IEnumerable<JobSchedule> _schedules = schedules;
         private readonly ILogger<JobScheduler> _logger = logger;
-
         private readonly bool _runAllJobsInPreview = configuration.GetValue<bool>("RunAllJobsInPreview");
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("🚦 Job scheduler starting...");
 
-            foreach (var schedule in _schedules)
+            if (!_schedules.Any())
             {
-                if (!schedule.Enabled)
-                {
-                    _logger.LogInformation("⏭️  Skipping disabled job: {JobName}", schedule.JobName);
-                    continue;
-                }
+                _logger.LogWarning("⚠️ No jobs configured.");
+                return;
+            }
 
+            LogConfiguredJobs();
+
+            foreach (var schedule in _schedules.Where(s => s.Enabled))
+            {
                 var task = _tasks.FirstOrDefault(t => t.Name == schedule.JobName);
                 if (task == null)
                 {
-                    _logger.LogWarning("❌ No task found for job: {JobName}", schedule.JobName);
+                    _logger.LogWarning("❓ No task found for job: {JobName}", schedule.JobName);
                     continue;
                 }
 
+                var isPreview = schedule.IsPreview || _runAllJobsInPreview;
                 var context = new JobContext
                 {
                     Logger = _logger,
                     Parameters = schedule.Parameters
                 };
 
-                bool isPreview = schedule.IsPreview || _runAllJobsInPreview;
-
-                if (task is IPreviewableJob previewJob && isPreview)
+                if (task is IPreviewableJob previewable && isPreview)
                 {
-                    _logger.LogInformation("📝 Preview mode enabled for: {JobName}", schedule.JobName);
-                    _ = Task.Run(() => previewJob.PreviewAsync(context, stoppingToken), stoppingToken);
+                    _ = Task.Run(() => previewable.PreviewAsync(context, stoppingToken), stoppingToken);
                 }
                 else
                 {
-                    _logger.LogInformation("⏰ Scheduling job: {JobName} every {Interval}", schedule.JobName, schedule.Interval);
-                    _ = RunOnIntervalAsync(task, schedule, stoppingToken);
+                    _ = RunOnIntervalAsync(task, schedule, context, stoppingToken);
                 }
             }
 
             await Task.CompletedTask;
         }
 
-        private async Task RunOnIntervalAsync(IJobTask task, JobSchedule schedule, CancellationToken token)
+        private void LogConfiguredJobs()
         {
+            _logger.LogInformation("📦 Jobs configured:");
+            var count = _schedules.Count();
+
+            for (int i = 0; i < count; i++)
+            {
+                var schedule = _schedules.ElementAt(i);
+                var isLast = i == count - 1;
+                var prefix = isLast ? "└─" : "├─";
+                var status = schedule.Enabled ? "✅" : "❌";
+                var preview = schedule.IsPreview || _runAllJobsInPreview ? " 🧪" : "";
+
+                _logger.LogInformation(" {Prefix} {Status} {JobName}{Preview} ⏱️ Every {Interval}",
+                    prefix, status, schedule.JobName, preview, schedule.Interval);
+            }
+        }
+
+        private async Task RunOnIntervalAsync(IJobTask task, JobSchedule schedule, JobContext context, CancellationToken token)
+        {
+            var jobIcon = GetJobIcon(schedule.JobName);
+            var outputBuffer = new StringWriter();
+            var logCapture = context.Logger;
+
+            // Replace the logger with one that writes to a buffer (if you want cleaner batching)
+            var bufferedLogger = new BufferedLogger(logCapture, outputBuffer);
+
+            var runContext = new JobContext
+            {
+                Logger = bufferedLogger,
+                Parameters = context.Parameters
+            };
+
             while (!token.IsCancellationRequested)
             {
-                var context = new JobContext
-                {
-                    Logger = _logger,
-                    Parameters = schedule.Parameters
-                };
-
                 try
                 {
-                    _logger.LogInformation("✅ Executing {JobName}", schedule.JobName);
-                    await task.ExecuteAsync(context, token);
+                    await task.ExecuteAsync(runContext, token);
+                    var jobOutput = outputBuffer.ToString().Trim();
+
+                    if (!string.IsNullOrEmpty(jobOutput))
+                    {
+                        _logger.LogInformation("{Icon} {JobName} run result:\n{Output}", jobIcon, schedule.JobName, jobOutput);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "💥 Error executing {JobName}", task.Name);
+                    _logger.LogError(ex, "❌ Error executing {JobName}", schedule.JobName);
                 }
 
+                outputBuffer.GetStringBuilder().Clear(); // Clear between runs
                 await Task.Delay(schedule.Interval, token);
             }
         }
+
+        private static string GetJobIcon(string jobName) => jobName switch
+        {
+            "PingJob" => "📡",
+            "DiskCleanupJob" => "🧹",
+            "GitHubStarTrackerJob" => "⭐",
+            "ApplicationResourceMonitorJob" => "📊",
+            _ => "🧩"
+        };
     }
 }

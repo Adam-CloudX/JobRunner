@@ -41,9 +41,7 @@ try
             }
             else
             {
-                logger.Information("📦 Loaded {Count} job(s): {Jobs}",
-                    jobList.Count,
-                    string.Join(", ", jobList.Select(j => $"{j.JobName} ⏱️ {j.Interval}")));
+                logger.Information("📦 Loaded {Count} job(s): {Jobs}", jobList.Count, string.Join(", ", jobList.Select(j => j.JobName)));
             }
 
             // Register job implementations
